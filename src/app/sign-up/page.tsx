@@ -18,6 +18,8 @@ import { Label } from "@/components/ui/label";
 
 export default function SignUpPage() {
   const router = useRouter();
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -35,14 +37,20 @@ export default function SignUpPage() {
       password,
       options: {
         emailRedirectTo: `${window.location.origin}/auth/callback`,
+        data: {
+          first_name: firstName.trim() || undefined,
+          last_name: lastName.trim() || undefined,
+        },
       },
     });
 
-    setLoading(false);
     if (signUpError) {
+      setLoading(false);
       setError(signUpError.message);
       return;
     }
+
+    setLoading(false);
     setSuccess(true);
     router.refresh();
   }
@@ -85,7 +93,7 @@ export default function SignUpPage() {
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl">Create an account</CardTitle>
             <CardDescription>
-              Enter your email and a password to get started
+              Enter your name, email, and a password to get started
             </CardDescription>
           </CardHeader>
           <form onSubmit={handleSubmit}>
@@ -95,6 +103,30 @@ export default function SignUpPage() {
                   {error}
                 </p>
               )}
+              <div className="space-y-2">
+                <Label htmlFor="firstName">First name</Label>
+                <Input
+                  id="firstName"
+                  type="text"
+                  placeholder="Jane"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  autoComplete="given-name"
+                  disabled={loading}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="lastName">Last name</Label>
+                <Input
+                  id="lastName"
+                  type="text"
+                  placeholder="Doe"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  autoComplete="family-name"
+                  disabled={loading}
+                />
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
