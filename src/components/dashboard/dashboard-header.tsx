@@ -5,11 +5,13 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useGroup } from "@/contexts/group-context";
 import { createClient } from "@/lib/supabase/client";
+import { CreateGroupModal } from "@/components/tracker/create-group-modal";
 
 export function DashboardHeader() {
-  const { groups, activeGroup, setActiveGroup } = useGroup();
+  const { groups, activeGroup, setActiveGroup, refreshGroups } = useGroup();
   const [groupDropdownOpen, setGroupDropdownOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [createGroupOpen, setCreateGroupOpen] = useState(false);
   const [userName, setUserName] = useState("");
   const [userInitial, setUserInitial] = useState("");
   const groupRef = useRef<HTMLDivElement>(null);
@@ -76,27 +78,25 @@ export function DashboardHeader() {
                 className="flex items-center gap-1 font-medium transition-colors hover:text-primary"
               >
                 {activeGroup.name}
-                {groups.length > 1 && (
-                  <svg
-                    className={cn(
-                      "h-3.5 w-3.5 text-muted-foreground transition-transform",
-                      groupDropdownOpen && "rotate-180"
-                    )}
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
-                )}
+                <svg
+                  className={cn(
+                    "h-3.5 w-3.5 text-muted-foreground transition-transform",
+                    groupDropdownOpen && "rotate-180"
+                  )}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
               </button>
 
-              {groupDropdownOpen && groups.length > 1 && (
+              {groupDropdownOpen && (
                 <div className="absolute left-0 top-full z-50 mt-1 min-w-[180px] rounded-md border border-border bg-popover p-1 shadow-md">
                   {groups.map((g) => (
                     <button
@@ -115,6 +115,15 @@ export function DashboardHeader() {
                     </button>
                   ))}
                   <div className="my-1 border-t border-border" />
+                  <button
+                    onClick={() => {
+                      setGroupDropdownOpen(false);
+                      setCreateGroupOpen(true);
+                    }}
+                    className="flex w-full items-center rounded-sm px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
+                  >
+                    <span className="mr-2 text-primary">+</span> Add group
+                  </button>
                   <Link
                     href="/tracker/settings"
                     onClick={() => setGroupDropdownOpen(false)}
@@ -182,6 +191,12 @@ export function DashboardHeader() {
           </div>
         )}
       </div>
+      {/* Create Group Modal */}
+      <CreateGroupModal
+        open={createGroupOpen}
+        onOpenChange={setCreateGroupOpen}
+        onGroupCreated={refreshGroups}
+      />
     </header>
   );
 }
