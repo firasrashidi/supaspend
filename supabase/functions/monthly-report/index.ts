@@ -293,17 +293,21 @@ Deno.serve(async (req) => {
         if (newPage) drawBudgetHeader();
 
         const b = budgetList[i];
-        const spent = txList
-          .filter(
-            (t: any) =>
-              t.type === "expense" &&
-              t.category?.toLowerCase() === b.category.toLowerCase()
-          )
+        const matching = txList.filter(
+          (t: any) => t.category?.toLowerCase() === b.category.toLowerCase()
+        );
+        const expenses = matching
+          .filter((t: any) => t.type === "expense")
           .reduce((s: number, t: any) => s + t.amount, 0);
-        const remaining = Math.max(0, b.amount_limit - spent);
-        const pct = b.amount_limit > 0 ? (spent / b.amount_limit) * 100 : 0;
+        const income = matching
+          .filter((t: any) => t.type === "income")
+          .reduce((s: number, t: any) => s + t.amount, 0);
+        const effectiveLimit = b.amount_limit + income;
+        const spent = expenses;
+        const remaining = Math.max(0, effectiveLimit - spent);
+        const pct = effectiveLimit > 0 ? (spent / effectiveLimit) * 100 : 0;
 
-        totalLimit += b.amount_limit;
+        totalLimit += effectiveLimit;
         totalSpent += spent;
 
         if (i % 2 === 0) {
@@ -317,7 +321,7 @@ Deno.serve(async (req) => {
         }
 
         text(b.category, bCols[0].x + 5, y, { size: 9 });
-        text(fmtCurrency(b.amount_limit, b.currency), bCols[1].x + 5, y, {
+        text(fmtCurrency(effectiveLimit, b.currency), bCols[1].x + 5, y, {
           size: 9,
         });
         text(fmtCurrency(spent, b.currency), bCols[2].x + 5, y, {

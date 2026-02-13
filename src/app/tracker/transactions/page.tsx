@@ -12,6 +12,7 @@ import {
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useGroup } from "@/contexts/group-context";
+import { EditTransactionModal } from "@/components/tracker/edit-transaction-modal";
 import type { Transaction } from "@/types/database";
 
 const MONTHS = [
@@ -29,6 +30,8 @@ export default function TransactionsPage() {
   const [viewMonth, setViewMonth] = useState(now.getMonth() + 1);
   const [viewYear, setViewYear] = useState(now.getFullYear());
   const [typeFilter, setTypeFilter] = useState<FilterType>("all");
+  const [editTx, setEditTx] = useState<Transaction | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
 
   const fetchTransactions = useCallback(async () => {
     setLoading(true);
@@ -228,7 +231,11 @@ export default function TransactionsPage() {
                   {dayTx.map((t) => (
                     <div
                       key={t.id}
-                      className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3"
+                      onClick={() => {
+                        setEditTx(t);
+                        setEditOpen(true);
+                      }}
+                      className="flex cursor-pointer items-center justify-between rounded-lg border border-border bg-card px-4 py-3 transition-colors hover:bg-muted/50"
                     >
                       <div className="flex items-center gap-3">
                         <div
@@ -281,6 +288,15 @@ export default function TransactionsPage() {
           })}
         </div>
       )}
+
+      {/* Edit Transaction Modal */}
+      <EditTransactionModal
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        transaction={editTx}
+        onSaved={fetchTransactions}
+        onDeleted={fetchTransactions}
+      />
     </div>
   );
 }

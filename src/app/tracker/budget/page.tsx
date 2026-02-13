@@ -13,7 +13,7 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December",
 ];
 
-type BudgetWithSpent = GroupBudget & { spent: number };
+type BudgetWithSpent = GroupBudget & { spent: number; effective_limit: number };
 
 export default function BudgetPage() {
   const now = new Date();
@@ -51,19 +51,22 @@ export default function BudgetPage() {
       .from("transactions")
       .select("*")
       .eq("group_id", activeGroup.id)
-      .eq("type", "expense")
       .gte("date", startDate)
       .lte("date", endDate);
 
     const txList = txData || [];
 
     const enriched: BudgetWithSpent[] = (budgetsData || []).map((b) => {
-      const spent = txList
-        .filter(
-          (t) => t.category?.toLowerCase() === b.category.toLowerCase()
-        )
+      const matching = txList.filter(
+        (t) => t.category?.toLowerCase() === b.category.toLowerCase()
+      );
+      const expenses = matching
+        .filter((t) => t.type === "expense")
         .reduce((sum, t) => sum + t.amount, 0);
-      return { ...b, spent };
+      const income = matching
+        .filter((t) => t.type === "income")
+        .reduce((sum, t) => sum + t.amount, 0);
+      return { ...b, spent: expenses, effective_limit: b.amount_limit + income };
     });
 
     setBudgets(enriched);
@@ -97,7 +100,7 @@ export default function BudgetPage() {
     }).format(amount);
   };
 
-  const totalBudget = budgets.reduce((s, b) => s + b.amount_limit, 0);
+  const totalBudget = budgets.reduce((s, b) => s + b.effective_limit, 0);
   const totalSpent = budgets.reduce((s, b) => s + b.spent, 0);
 
   return (
@@ -199,8 +202,8 @@ export default function BudgetPage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {budgets.map((b) => {
               const pct =
-                b.amount_limit > 0 ? (b.spent / b.amount_limit) * 100 : 0;
-              const remaining = Math.max(0, b.amount_limit - b.spent);
+                b.effective_limit > 0 ? (b.spent / b.effective_limit) * 100 : 0;
+              const remaining = Math.max(0, b.effective_limit - b.spent);
               return (
                 <div
                   key={b.id}
@@ -243,7 +246,7 @@ export default function BudgetPage() {
                     </span>
                   </div>
                   <p className="mt-1 text-right text-xs text-muted-foreground">
-                    of {formatAmount(b.amount_limit, b.currency)}
+                    of {formatAmount(b.effective_limit, b.currency)}
                   </p>
                 </div>
               );

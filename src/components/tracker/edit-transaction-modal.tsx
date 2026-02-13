@@ -23,94 +23,74 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { BudgetCombobox } from "./budget-combobox";
 import { createClient } from "@/lib/supabase/client";
-import type { Group } from "@/types/database";
+import type { Transaction, Group } from "@/types/database";
 
-// Currency symbols for common currencies (ISO doesn't include symbols)
 const CURRENCY_SYMBOLS: Record<string, string> = {
-  USD: "$",
-  EUR: "€",
-  GBP: "£",
-  JPY: "¥",
-  CNY: "¥",
-  INR: "₹",
-  KRW: "₩",
-  BRL: "R$",
-  RUB: "₽",
-  TRY: "₺",
-  THB: "฿",
-  PLN: "zł",
-  SEK: "kr",
-  NOK: "kr",
-  DKK: "kr",
-  CHF: "Fr",
-  AED: "د.إ",
-  SAR: "﷼",
-  ILS: "₪",
-  PHP: "₱",
-  MYR: "RM",
-  IDR: "Rp",
-  VND: "₫",
-  NGN: "₦",
-  ZAR: "R",
-  EGP: "£",
-  PKR: "₨",
-  BDT: "৳",
-  MAD: "د.م.",
+  USD: "$", EUR: "€", GBP: "£", JPY: "¥", CNY: "¥", INR: "₹", KRW: "₩",
+  BRL: "R$", RUB: "₽", TRY: "₺", THB: "฿", PLN: "zł", SEK: "kr",
+  NOK: "kr", DKK: "kr", CHF: "Fr", AED: "د.إ", SAR: "﷼", ILS: "₪",
+  PHP: "₱", MYR: "RM", IDR: "Rp", VND: "₫", NGN: "₦", ZAR: "R",
+  EGP: "£", PKR: "₨", BDT: "৳", MAD: "د.م.",
 };
 
-// Most common currencies to show at the top
 const PRIORITY_CURRENCIES = [
   "USD", "EUR", "GBP", "CAD", "AUD", "JPY", "CHF", "CNY", "INR", "MXN",
   "BRL", "KRW", "AED", "SAR", "MAD", "SGD", "HKD", "NZD", "SEK", "NOK",
 ];
 
-// Non-currency codes to exclude (precious metals, testing codes, supranational, etc.)
 const EXCLUDED_CODES = new Set([
-  "XAU", // Gold
-  "XAG", // Silver
-  "XPT", // Platinum
-  "XPD", // Palladium
-  "XBA", // Bond Markets Unit European Composite Unit
-  "XBB", // Bond Markets Unit European Monetary Unit
-  "XBC", // Bond Markets Unit European Unit of Account 9
-  "XBD", // Bond Markets Unit European Unit of Account 17
-  "XDR", // IMF Special Drawing Rights
-  "XSU", // Sucre
-  "XUA", // ADB Unit of Account
-  "XTS", // Testing
-  "XXX", // No currency
+  "XAU", "XAG", "XPT", "XPD", "XBA", "XBB", "XBC", "XBD",
+  "XDR", "XSU", "XUA", "XTS", "XXX",
 ]);
-
-interface AddTransactionModalProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  selectedDate: Date;
-  defaultGroupId?: string;
-}
-
 
 function getSymbol(code: string): string {
   return CURRENCY_SYMBOLS[code] || code;
 }
 
-export function AddTransactionModal({
+interface EditTransactionModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  transaction: Transaction | null;
+  onSaved: () => void;
+  onDeleted: () => void;
+}
+
+export function EditTransactionModal({
   open,
   onOpenChange,
-  selectedDate,
-  defaultGroupId,
-}: AddTransactionModalProps) {
+  transaction,
+  onSaved,
+  onDeleted,
+}: EditTransactionModalProps) {
   const [type, setType] = useState<"expense" | "income">("expense");
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState("USD");
   const [merchant, setMerchant] = useState("");
   const [category, setCategory] = useState("");
+  const [date, setDate] = useState("");
   const [notes, setNotes] = useState("");
-  const [receiptFile, setReceiptFile] = useState<File | null>(null);
-  const [groupId, setGroupId] = useState<string>(defaultGroupId || "");
+  const [groupId, setGroupId] = useState("");
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
-  // Fetch user's groups on mount
+  // Populate form when transaction changes
+  useEffect(() => {
+    if (transaction && open) {
+      setType(transaction.type);
+      setAmount(String(transaction.amount));
+      setCurrency(transaction.currency);
+      setMerchant(transaction.merchant);
+      setCategory(transaction.category || "");
+      setDate(transaction.date);
+      setNotes(transaction.notes || "");
+      setGroupId(transaction.group_id || "");
+      setConfirmDelete(false);
+    }
+  }, [transaction, open]);
+
+  // Fetch groups
   useEffect(() => {
     if (!open) return;
     async function fetchGroups() {
@@ -131,18 +111,12 @@ export function AddTransactionModal({
           .from("groups")
           .select("*")
           .in("id", ids);
-        const list = groupsData || [];
-        setGroups(list);
-        // Default to first group if no defaultGroupId
-        if (!defaultGroupId && list.length > 0) {
-          setGroupId(list[0].id);
-        }
+        setGroups(groupsData || []);
       }
     }
     fetchGroups();
-  }, [open, defaultGroupId]);
+  }, [open]);
 
-  // All currencies sorted: priority first, then alphabetically (excluding non-currencies)
   const allCurrencies = useMemo(() => {
     const all = codes().filter((c) => !EXCLUDED_CODES.has(c));
     const priority = PRIORITY_CURRENCIES.filter((c) => all.includes(c));
@@ -152,103 +126,83 @@ export function AddTransactionModal({
 
   const currencySymbol = getSymbol(currency);
 
-  const resetForm = () => {
-    setType("expense");
-    setAmount("");
-    setCurrency("USD");
-    setMerchant("");
-    setCategory("");
-    setNotes("");
-    setReceiptFile(null);
-    setGroupId(defaultGroupId || "");
-  };
-
   const handleClose = () => {
-    resetForm();
+    setConfirmDelete(false);
     onOpenChange(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!transaction) return;
     setLoading(true);
 
     try {
       const supabase = createClient();
-      const { data: userData } = await supabase.auth.getUser();
-      
-      if (!userData.user) {
-        throw new Error("Not authenticated");
-      }
 
-      const userId = userData.user.id;
-      let receiptUrl: string | null = null;
+      const { error: updateError } = await supabase
+        .from("transactions")
+        .update({
+          type,
+          date,
+          amount: parseFloat(amount),
+          currency,
+          merchant: merchant.trim(),
+          category: category.trim() || null,
+          notes: notes.trim() || null,
+          group_id: groupId || null,
+        })
+        .eq("id", transaction.id);
 
-      // Upload receipt if provided
-      if (receiptFile) {
-        const fileExt = receiptFile.name.split(".").pop();
-        const fileName = `${userId}/${Date.now()}.${fileExt}`;
-        
-        const { error: uploadError } = await supabase.storage
-          .from("receipts")
-          .upload(fileName, receiptFile);
-
-        if (!uploadError) {
-          const { data: urlData } = supabase.storage
-            .from("receipts")
-            .getPublicUrl(fileName);
-          receiptUrl = urlData.publicUrl;
-        }
-      }
-
-      // Create category if it doesn't exist
-      if (category.trim()) {
-        await supabase
-          .from("categories")
-          .upsert(
-            { user_id: userId, name: category.trim() },
-            { onConflict: "user_id,name", ignoreDuplicates: true }
-          );
-      }
-
-      // Insert transaction
-      const { error: insertError } = await supabase.from("transactions").insert({
-        user_id: userId,
-        type,
-        date: selectedDate.toISOString().split("T")[0],
-        amount: parseFloat(amount),
-        currency,
-        merchant: merchant.trim(),
-        category: category.trim() || null,
-        notes: notes.trim() || null,
-        receipt_url: receiptUrl,
-        group_id: groupId,
-      });
-
-      if (insertError) {
-        throw insertError;
-      }
+      if (updateError) throw updateError;
 
       handleClose();
+      onSaved();
     } catch (error) {
-      console.error("Failed to save transaction:", error);
-      // TODO: Show error toast
+      console.error("Failed to update transaction:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const formattedDate = selectedDate.toLocaleDateString("en-US", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  const handleDelete = async () => {
+    if (!transaction) return;
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("transactions")
+        .delete()
+        .eq("id", transaction.id);
+
+      if (error) throw error;
+
+      handleClose();
+      onDeleted();
+    } catch (error) {
+      console.error("Failed to delete transaction:", error);
+    } finally {
+      setDeleting(false);
+      setConfirmDelete(false);
+    }
+  };
+
+  if (!transaction) return null;
+
+  const formattedDate = new Date(date + "T00:00:00").toLocaleDateString(
+    "en-US",
+    { weekday: "long", year: "numeric", month: "long", day: "numeric" }
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Add Transaction</DialogTitle>
+          <DialogTitle>Edit Transaction</DialogTitle>
           <DialogDescription>{formattedDate}</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
@@ -273,9 +227,21 @@ export function AddTransactionModal({
               </Button>
             </div>
 
+            {/* Date */}
+            <div className="grid gap-2">
+              <Label htmlFor="edit-date">Date</Label>
+              <Input
+                id="edit-date"
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                required
+              />
+            </div>
+
             {/* Amount and Currency */}
             <div className="grid gap-2">
-              <Label htmlFor="amount">Amount</Label>
+              <Label htmlFor="edit-amount">Amount</Label>
               <div className="flex gap-2">
                 <Select value={currency} onValueChange={setCurrency}>
                   <SelectTrigger className="w-28">
@@ -297,7 +263,7 @@ export function AddTransactionModal({
                     {currencySymbol}
                   </span>
                   <Input
-                    id="amount"
+                    id="edit-amount"
                     type="number"
                     step="0.01"
                     min="0"
@@ -313,10 +279,12 @@ export function AddTransactionModal({
 
             {/* Merchant */}
             <div className="grid gap-2">
-              <Label htmlFor="merchant">Merchant</Label>
+              <Label htmlFor="edit-merchant">Merchant</Label>
               <Input
-                id="merchant"
-                placeholder={type === "expense" ? "e.g. Starbucks" : "e.g. Employer"}
+                id="edit-merchant"
+                placeholder={
+                  type === "expense" ? "e.g. Starbucks" : "e.g. Employer"
+                }
                 value={merchant}
                 onChange={(e) => setMerchant(e.target.value)}
                 required
@@ -354,41 +322,39 @@ export function AddTransactionModal({
 
             {/* Notes */}
             <div className="grid gap-2">
-              <Label htmlFor="notes">Notes (optional)</Label>
+              <Label htmlFor="edit-notes">Notes (optional)</Label>
               <Textarea
-                id="notes"
+                id="edit-notes"
                 placeholder="Add any additional details..."
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={2}
               />
             </div>
-
-            {/* Receipt upload */}
-            <div className="grid gap-2">
-              <Label htmlFor="receipt">Receipt (optional)</Label>
-              <Input
-                id="receipt"
-                type="file"
-                accept="image/*"
-                onChange={(e) => setReceiptFile(e.target.files?.[0] || null)}
-                className="cursor-pointer"
-              />
-              {receiptFile && (
-                <p className="text-xs text-muted-foreground">
-                  Selected: {receiptFile.name}
-                </p>
-              )}
-            </div>
           </div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={handleClose}>
-              Cancel
+          <DialogFooter className="flex !justify-between">
+            <Button
+              type="button"
+              variant={confirmDelete ? "destructive" : "outline"}
+              onClick={handleDelete}
+              disabled={loading || deleting}
+              className="mr-auto"
+            >
+              {deleting
+                ? "Deleting..."
+                : confirmDelete
+                  ? "Confirm delete?"
+                  : "Delete"}
             </Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? "Saving..." : "Add Transaction"}
-            </Button>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={handleClose}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={loading || deleting}>
+                {loading ? "Saving..." : "Save changes"}
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>

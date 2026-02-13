@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { AddBudgetModal } from "@/components/tracker/add-budget-modal";
 import { AddTransactionModal } from "@/components/tracker/add-transaction-modal";
+import { EditTransactionModal } from "@/components/tracker/edit-transaction-modal";
 import type { Group, GroupBudget, Transaction } from "@/types/database";
 
 const MONTHS = [
@@ -14,7 +15,7 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December",
 ];
 
-type BudgetWithSpent = GroupBudget & { spent: number };
+type BudgetWithSpent = GroupBudget & { spent: number; effective_limit: number };
 
 export default function GroupDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -30,6 +31,8 @@ export default function GroupDetailPage() {
   const [budgetModalOpen, setBudgetModalOpen] = useState(false);
   const [txModalOpen, setTxModalOpen] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [editTx, setEditTx] = useState<Transaction | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
 
   // Current month/year for filtering
   const [viewMonth, setViewMonth] = useState(now.getMonth() + 1);
@@ -89,16 +92,18 @@ export default function GroupDetailPage() {
     const txList = txData || [];
     setTransactions(txList);
 
-    // Calculate spent per budget category
+    // Calculate spent per budget category (income tops up the budget limit)
     const enriched: BudgetWithSpent[] = (budgetsData || []).map((b) => {
-      const spent = txList
-        .filter(
-          (t) =>
-            t.type === "expense" &&
-            t.category?.toLowerCase() === b.category.toLowerCase()
-        )
+      const matching = txList.filter(
+        (t) => t.category?.toLowerCase() === b.category.toLowerCase()
+      );
+      const expenses = matching
+        .filter((t) => t.type === "expense")
         .reduce((sum, t) => sum + t.amount, 0);
-      return { ...b, spent };
+      const income = matching
+        .filter((t) => t.type === "income")
+        .reduce((sum, t) => sum + t.amount, 0);
+      return { ...b, spent: expenses, effective_limit: b.amount_limit + income };
     });
 
     setBudgets(enriched);
@@ -150,7 +155,7 @@ export default function GroupDetailPage() {
 
   if (!group) return null;
 
-  const totalBudget = budgets.reduce((sum, b) => sum + b.amount_limit, 0);
+  const totalBudget = budgets.reduce((sum, b) => sum + b.effective_limit, 0);
   const totalSpent = budgets.reduce((sum, b) => sum + b.spent, 0);
 
   return (
@@ -251,8 +256,8 @@ export default function GroupDetailPage() {
         <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {budgets.map((b) => {
             const pct =
-              b.amount_limit > 0 ? (b.spent / b.amount_limit) * 100 : 0;
-            const remaining = Math.max(0, b.amount_limit - b.spent);
+              b.effective_limit > 0 ? (b.spent / b.effective_limit) * 100 : 0;
+            const remaining = Math.max(0, b.effective_limit - b.spent);
             return (
               <div
                 key={b.id}
@@ -333,7 +338,11 @@ export default function GroupDetailPage() {
             {transactions.map((t) => (
               <div
                 key={t.id}
-                className="flex items-center justify-between rounded-lg border border-border bg-card px-4 py-3"
+                onClick={() => {
+                  setEditTx(t);
+                  setEditOpen(true);
+                }}
+                className="flex cursor-pointer items-center justify-between rounded-lg border border-border bg-card px-4 py-3 transition-colors hover:bg-muted/50"
               >
                 <div className="flex items-center gap-3">
                   <div
@@ -392,6 +401,15 @@ export default function GroupDetailPage() {
         }}
         selectedDate={new Date()}
         defaultGroupId={id}
+      />
+
+      {/* Edit Transaction Modal */}
+      <EditTransactionModal
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        transaction={editTx}
+        onSaved={fetchData}
+        onDeleted={fetchData}
       />
     </div>
   );

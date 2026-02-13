@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { AddTransactionModal } from "./add-transaction-modal";
+import { EditTransactionModal } from "./edit-transaction-modal";
 import { createClient } from "@/lib/supabase/client";
 import { useGroup } from "@/contexts/group-context";
 import type { Transaction } from "@/types/database";
@@ -119,6 +120,8 @@ export function MonthlyCalendar() {
   const [modalDate, setModalDate] = useState<Date>(today);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [exporting, setExporting] = useState(false);
+  const [editTx, setEditTx] = useState<Transaction | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
 
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
@@ -501,7 +504,11 @@ export function MonthlyCalendar() {
                 dayTransactions.map((t) => (
                   <div
                     key={t.id}
-                    className="flex items-center justify-between rounded-lg border border-border bg-card p-4"
+                    onClick={() => {
+                      setEditTx(t);
+                      setEditOpen(true);
+                    }}
+                    className="flex cursor-pointer items-center justify-between rounded-lg border border-border bg-card p-4 transition-colors hover:bg-muted/50"
                   >
                     <div className="flex items-center gap-3">
                       <div
@@ -596,6 +603,15 @@ export function MonthlyCalendar() {
         onOpenChange={handleModalClose}
         selectedDate={modalDate}
         defaultGroupId={activeGroup?.id}
+      />
+
+      {/* Edit Transaction Modal */}
+      <EditTransactionModal
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        transaction={editTx}
+        onSaved={fetchTransactions}
+        onDeleted={fetchTransactions}
       />
     </div>
   );
