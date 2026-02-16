@@ -114,6 +114,35 @@ export default function GroupDetailPage() {
     fetchData();
   }, [fetchData]);
 
+  // Realtime subscription
+  useEffect(() => {
+    if (!id) return;
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel("group-realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "transactions",
+        },
+        (payload) => {
+          const row = payload.new as Record<string, unknown> | undefined;
+          const old = payload.old as Record<string, unknown> | undefined;
+          if (row?.group_id === id || old?.group_id === id) {
+            fetchData();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [id, fetchData]);
+
   const copyCode = () => {
     if (group) {
       navigator.clipboard.writeText(group.invite_code);

@@ -200,16 +200,6 @@ export function AddTransactionModal({
         }
       }
 
-      // Create category if it doesn't exist
-      if (category.trim()) {
-        await supabase
-          .from("categories")
-          .upsert(
-            { user_id: userId, name: category.trim() },
-            { onConflict: "user_id,name", ignoreDuplicates: true }
-          );
-      }
-
       // Insert transaction
       const { error: insertError } = await supabase.from("transactions").insert({
         user_id: userId,
@@ -231,7 +221,6 @@ export function AddTransactionModal({
       handleClose();
     } catch (error) {
       console.error("Failed to save transaction:", error);
-      // TODO: Show error toast
     } finally {
       setLoading(false);
     }

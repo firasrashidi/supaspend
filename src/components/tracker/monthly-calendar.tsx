@@ -38,7 +38,6 @@ async function downloadPDF(
 
   if (!res.ok) {
     const text = await res.text();
-    console.error("Edge function error:", res.status, text);
     let msg = "Export failed";
     try {
       msg = JSON.parse(text).error || msg;
@@ -167,6 +166,38 @@ export function MonthlyCalendar() {
   useEffect(() => {
     fetchTransactions();
   }, [fetchTransactions]);
+
+  // Realtime: re-fetch when transactions table changes
+  useEffect(() => {
+    if (!activeGroup) return;
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel("tracker-realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "transactions",
+        },
+        (payload) => {
+          const row = payload.new as Record<string, unknown> | undefined;
+          const old = payload.old as Record<string, unknown> | undefined;
+          const affectsGroup =
+            row?.group_id === activeGroup.id ||
+            old?.group_id === activeGroup.id;
+          if (affectsGroup) {
+            fetchTransactions();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeGroup, fetchTransactions]);
 
   // Refetch after modal closes (new transaction added)
   const handleModalClose = (open: boolean) => {

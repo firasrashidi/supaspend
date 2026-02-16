@@ -20,7 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { BudgetCombobox } from "./budget-combobox";
 import { createClient } from "@/lib/supabase/client";
 
 const PRIORITY_CURRENCIES = [

@@ -65,6 +65,38 @@ export default function TransactionsPage() {
     fetchTransactions();
   }, [fetchTransactions]);
 
+  // Realtime subscription
+  useEffect(() => {
+    if (!activeGroup) return;
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel("txpage-realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "transactions",
+        },
+        (payload) => {
+          const row = payload.new as Record<string, unknown> | undefined;
+          const old = payload.old as Record<string, unknown> | undefined;
+          if (
+            row?.group_id === activeGroup.id ||
+            old?.group_id === activeGroup.id
+          ) {
+            fetchTransactions();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeGroup, fetchTransactions]);
+
   const navigateMonth = (direction: -1 | 1) => {
     let newMonth = viewMonth + direction;
     let newYear = viewYear;
