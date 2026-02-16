@@ -20,6 +20,8 @@ export type Transaction = {
   notes: string | null;
   receipt_url: string | null;
   group_id: string | null;
+  converted_amount: number | null;
+  converted_currency: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -39,6 +41,7 @@ export type Group = {
   invite_code: string;
   created_by: string;
   is_personal: boolean;
+  currency: string;
   created_at: string;
 };
 

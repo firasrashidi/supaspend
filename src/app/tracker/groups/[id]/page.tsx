@@ -93,16 +93,17 @@ export default function GroupDetailPage() {
     setTransactions(txList);
 
     // Calculate spent per budget category (income tops up the budget limit)
+    // Use converted_amount (group currency) when available, fall back to original amount
     const enriched: BudgetWithSpent[] = (budgetsData || []).map((b) => {
       const matching = txList.filter(
         (t) => t.category?.toLowerCase() === b.category.toLowerCase()
       );
       const expenses = matching
         .filter((t) => t.type === "expense")
-        .reduce((sum, t) => sum + t.amount, 0);
+        .reduce((sum, t) => sum + (t.converted_amount ?? t.amount), 0);
       const income = matching
         .filter((t) => t.type === "income")
-        .reduce((sum, t) => sum + t.amount, 0);
+        .reduce((sum, t) => sum + (t.converted_amount ?? t.amount), 0);
       return { ...b, spent: expenses, effective_limit: b.amount_limit + income };
     });
 

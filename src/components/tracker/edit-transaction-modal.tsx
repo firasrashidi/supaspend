@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { codes, code as getCurrency } from "currency-codes";
+import { getRate } from "@/lib/exchange";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -74,6 +75,35 @@ export function EditTransactionModal({
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [budgetCurrency, setBudgetCurrency] = useState<string | null>(null);
+  const [convertedPreview, setConvertedPreview] = useState<number | null>(null);
+  const [conversionRate, setConversionRate] = useState<number | null>(null);
+  const [loadingRate, setLoadingRate] = useState(false);
+
+  const needsConversion = budgetCurrency !== null && currency !== budgetCurrency;
+
+  // Clear preview when currency, amount, or budget changes
+  useEffect(() => {
+    setConvertedPreview(null);
+    setConversionRate(null);
+  }, [currency, budgetCurrency, amount]);
+
+  // Manual fetch triggered by button click
+  const handleConvert = async () => {
+    const numAmount = parseFloat(amount);
+    if (!needsConversion || !budgetCurrency || isNaN(numAmount) || numAmount <= 0) return;
+    setLoadingRate(true);
+    try {
+      const rate = await getRate(currency, budgetCurrency);
+      setConversionRate(rate);
+      setConvertedPreview(Math.round(numAmount * rate * 100) / 100);
+    } catch {
+      setConversionRate(null);
+      setConvertedPreview(null);
+    } finally {
+      setLoadingRate(false);
+    }
+  };
 
   // Populate form when transaction changes
   useEffect(() => {
@@ -139,6 +169,20 @@ export function EditTransactionModal({
     try {
       const supabase = createClient();
 
+      // Convert amount if transaction currency differs from budget currency
+      let convertedAmount: number | null = null;
+      let convertedCurrency: string | null = null;
+
+      if (budgetCurrency && currency !== budgetCurrency) {
+        try {
+          const rate = conversionRate ?? (await getRate(currency, budgetCurrency));
+          convertedAmount = Math.round(parseFloat(amount) * rate * 100) / 100;
+          convertedCurrency = budgetCurrency;
+        } catch {
+          // If conversion fails, save without converted amount
+        }
+      }
+
       const { error: updateError } = await supabase
         .from("transactions")
         .update({
@@ -150,6 +194,8 @@ export function EditTransactionModal({
           category: category.trim() || null,
           notes: notes.trim() || null,
           group_id: groupId || null,
+          converted_amount: convertedAmount,
+          converted_currency: convertedCurrency,
         })
         .eq("id", transaction.id);
 
@@ -275,6 +321,32 @@ export function EditTransactionModal({
                   />
                 </div>
               </div>
+              {needsConversion && budgetCurrency && (
+                <div className="flex items-center gap-2">
+                  {convertedPreview !== null ? (
+                    <p className="text-xs text-muted-foreground">
+                      ≈ {convertedPreview.toFixed(2)} {budgetCurrency}
+                      <span className="ml-1 opacity-60">
+                        (1 {currency} = {conversionRate?.toFixed(4)} {budgetCurrency})
+                      </span>
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-xs text-muted-foreground">
+                        Budget is in {budgetCurrency} — will be converted
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleConvert}
+                        disabled={loadingRate || !amount}
+                        className="rounded bg-muted px-2 py-0.5 text-xs font-medium text-foreground transition-colors hover:bg-muted/80 disabled:opacity-50"
+                      >
+                        {loadingRate ? "Converting..." : "Convert"}
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Merchant */}
@@ -297,6 +369,7 @@ export function EditTransactionModal({
               <BudgetCombobox
                 value={category}
                 onChange={setCategory}
+                onCurrencyChange={setBudgetCurrency}
                 groupId={groupId || undefined}
               />
             </div>

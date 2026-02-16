@@ -20,20 +20,24 @@ import {
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
+type BudgetOption = { category: string; currency: string };
+
 interface BudgetComboboxProps {
   value: string;
   onChange: (value: string) => void;
+  onCurrencyChange?: (currency: string | null) => void;
   groupId?: string;
 }
 
 export function BudgetCombobox({
   value,
   onChange,
+  onCurrencyChange,
   groupId,
 }: BudgetComboboxProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [budgets, setBudgets] = useState<string[]>([]);
+  const [budgets, setBudgets] = useState<BudgetOption[]>([]);
   const [loading, setLoading] = useState(false);
 
   // Fetch budgets for the group
@@ -53,13 +57,20 @@ export function BudgetCombobox({
 
       const { data } = await supabase
         .from("group_budgets")
-        .select("category")
+        .select("category, currency")
         .eq("group_id", groupId)
         .eq("month", month)
         .eq("year", year)
         .order("category");
 
-      const unique = [...new Set((data || []).map((d) => d.category))];
+      const seen = new Set<string>();
+      const unique: BudgetOption[] = [];
+      for (const d of data || []) {
+        if (!seen.has(d.category)) {
+          seen.add(d.category);
+          unique.push({ category: d.category, currency: d.currency });
+        }
+      }
       setBudgets(unique);
       setLoading(false);
     };
@@ -69,12 +80,14 @@ export function BudgetCombobox({
 
   const filtered = search.trim()
     ? budgets.filter((b) =>
-        b.toLowerCase().includes(search.trim().toLowerCase())
+        b.category.toLowerCase().includes(search.trim().toLowerCase())
       )
     : budgets;
 
-  const handleSelect = (selectedName: string) => {
-    onChange(selectedName === value ? "" : selectedName);
+  const handleSelect = (selected: BudgetOption) => {
+    const isDeselect = selected.category === value;
+    onChange(isDeselect ? "" : selected.category);
+    onCurrencyChange?.(isDeselect ? null : selected.currency);
     setOpen(false);
   };
 
@@ -125,17 +138,20 @@ export function BudgetCombobox({
               <CommandGroup heading="Budgets">
                 {filtered.map((b) => (
                   <CommandItem
-                    key={b}
-                    value={b}
+                    key={b.category}
+                    value={b.category}
                     onSelect={() => handleSelect(b)}
                   >
                     <Check
                       className={cn(
                         "mr-2 h-4 w-4",
-                        value === b ? "opacity-100" : "opacity-0"
+                        value === b.category ? "opacity-100" : "opacity-0"
                       )}
                     />
-                    {b}
+                    <span className="flex-1">{b.category}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {b.currency}
+                    </span>
                   </CommandItem>
                 ))}
               </CommandGroup>

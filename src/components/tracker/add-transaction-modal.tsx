@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { codes, code as getCurrency } from "currency-codes";
+import { getRate } from "@/lib/exchange";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,6 +24,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { BudgetCombobox } from "./budget-combobox";
 import { createClient } from "@/lib/supabase/client";
+import { useGroup } from "@/contexts/group-context";
 import type { Group } from "@/types/database";
 
 // Currency symbols for common currencies (ISO doesn't include symbols)
@@ -99,9 +101,10 @@ export function AddTransactionModal({
   selectedDate,
   defaultGroupId,
 }: AddTransactionModalProps) {
+  const { activeGroup } = useGroup();
   const [type, setType] = useState<"expense" | "income">("expense");
   const [amount, setAmount] = useState("");
-  const [currency, setCurrency] = useState("USD");
+  const [currency, setCurrency] = useState(activeGroup?.currency || "USD");
   const [merchant, setMerchant] = useState("");
   const [category, setCategory] = useState("");
   const [notes, setNotes] = useState("");
@@ -109,6 +112,35 @@ export function AddTransactionModal({
   const [groupId, setGroupId] = useState<string>(defaultGroupId || "");
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(false);
+  const [budgetCurrency, setBudgetCurrency] = useState<string | null>(null);
+  const [convertedPreview, setConvertedPreview] = useState<number | null>(null);
+  const [conversionRate, setConversionRate] = useState<number | null>(null);
+  const [loadingRate, setLoadingRate] = useState(false);
+
+  const needsConversion = budgetCurrency !== null && currency !== budgetCurrency;
+
+  // Clear preview when currency, amount, or budget changes
+  useEffect(() => {
+    setConvertedPreview(null);
+    setConversionRate(null);
+  }, [currency, budgetCurrency, amount]);
+
+  // Manual fetch triggered by button click
+  const handleConvert = async () => {
+    const numAmount = parseFloat(amount);
+    if (!needsConversion || !budgetCurrency || isNaN(numAmount) || numAmount <= 0) return;
+    setLoadingRate(true);
+    try {
+      const rate = await getRate(currency, budgetCurrency);
+      setConversionRate(rate);
+      setConvertedPreview(Math.round(numAmount * rate * 100) / 100);
+    } catch {
+      setConversionRate(null);
+      setConvertedPreview(null);
+    } finally {
+      setLoadingRate(false);
+    }
+  };
 
   // Fetch user's groups on mount
   useEffect(() => {
@@ -155,9 +187,10 @@ export function AddTransactionModal({
   const resetForm = () => {
     setType("expense");
     setAmount("");
-    setCurrency("USD");
+    setCurrency(activeGroup?.currency || "USD");
     setMerchant("");
     setCategory("");
+    setBudgetCurrency(null);
     setNotes("");
     setReceiptFile(null);
     setGroupId(defaultGroupId || "");
@@ -200,6 +233,20 @@ export function AddTransactionModal({
         }
       }
 
+      // Convert amount if transaction currency differs from budget currency
+      let convertedAmount: number | null = null;
+      let convertedCurrency: string | null = null;
+
+      if (budgetCurrency && currency !== budgetCurrency) {
+        try {
+          const rate = conversionRate ?? (await getRate(currency, budgetCurrency));
+          convertedAmount = Math.round(parseFloat(amount) * rate * 100) / 100;
+          convertedCurrency = budgetCurrency;
+        } catch {
+          // If conversion fails, save without converted amount
+        }
+      }
+
       // Insert transaction
       const { error: insertError } = await supabase.from("transactions").insert({
         user_id: userId,
@@ -212,6 +259,8 @@ export function AddTransactionModal({
         notes: notes.trim() || null,
         receipt_url: receiptUrl,
         group_id: groupId,
+        converted_amount: convertedAmount,
+        converted_currency: convertedCurrency,
       });
 
       if (insertError) {
@@ -298,6 +347,32 @@ export function AddTransactionModal({
                   />
                 </div>
               </div>
+              {needsConversion && budgetCurrency && (
+                <div className="flex items-center gap-2">
+                  {convertedPreview !== null ? (
+                    <p className="text-xs text-muted-foreground">
+                      ≈ {convertedPreview.toFixed(2)} {budgetCurrency}
+                      <span className="ml-1 opacity-60">
+                        (1 {currency} = {conversionRate?.toFixed(4)} {budgetCurrency})
+                      </span>
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-xs text-muted-foreground">
+                        Budget is in {budgetCurrency} — will be converted
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleConvert}
+                        disabled={loadingRate || !amount}
+                        className="rounded bg-muted px-2 py-0.5 text-xs font-medium text-foreground transition-colors hover:bg-muted/80 disabled:opacity-50"
+                      >
+                        {loadingRate ? "Converting..." : "Convert"}
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Merchant */}
@@ -318,6 +393,7 @@ export function AddTransactionModal({
               <BudgetCombobox
                 value={category}
                 onChange={setCategory}
+                onCurrencyChange={setBudgetCurrency}
                 groupId={groupId || undefined}
               />
             </div>

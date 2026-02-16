@@ -1,13 +1,31 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { codes, code as getCurrency } from "currency-codes";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useGroup } from "@/contexts/group-context";
 import { CreateGroupModal } from "@/components/tracker/create-group-modal";
 import { JoinGroupModal } from "@/components/tracker/join-group-modal";
 import type { Profile } from "@/types/database";
+
+const PRIORITY_CURRENCIES = [
+  "USD", "EUR", "GBP", "CAD", "AUD", "JPY", "CHF", "CNY", "INR", "MXN",
+  "BRL", "KRW", "AED", "SAR", "MAD", "SGD", "HKD", "NZD", "SEK", "NOK",
+];
+
+const EXCLUDED_CODES = new Set([
+  "XAU", "XAG", "XPT", "XPD", "XBA", "XBB", "XBC", "XBD",
+  "XDR", "XSU", "XUA", "XTS", "XXX",
+]);
 
 type MemberWithProfile = {
   user_id: string;
@@ -23,6 +41,26 @@ export default function SettingsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [joinOpen, setJoinOpen] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [savingCurrency, setSavingCurrency] = useState(false);
+
+  const allCurrencies = useMemo(() => {
+    const all = codes().filter((c) => !EXCLUDED_CODES.has(c));
+    const priority = PRIORITY_CURRENCIES.filter((c) => all.includes(c));
+    const rest = all.filter((c) => !PRIORITY_CURRENCIES.includes(c)).sort();
+    return [...priority, ...rest];
+  }, []);
+
+  const handleCurrencyChange = async (newCurrency: string) => {
+    if (!activeGroup || newCurrency === activeGroup.currency) return;
+    setSavingCurrency(true);
+    const supabase = createClient();
+    await supabase
+      .from("groups")
+      .update({ currency: newCurrency })
+      .eq("id", activeGroup.id);
+    await refreshGroups();
+    setSavingCurrency(false);
+  };
 
   const fetchMembers = useCallback(async () => {
     if (!activeGroup) {
@@ -145,6 +183,37 @@ export default function SettingsPage() {
       {/* Active group details */}
       {activeGroup && (
         <>
+          {/* Currency setting (all groups) */}
+          <div className="mb-8 rounded-lg border border-border bg-card p-5">
+            <h2 className="mb-3 font-semibold">Currency</h2>
+            <p className="mb-3 text-sm text-muted-foreground">
+              Default currency for transactions and budgets in{" "}
+              <span className="font-medium text-foreground">
+                {activeGroup.name}
+              </span>
+              .
+            </p>
+            <Select
+              value={activeGroup.currency}
+              onValueChange={handleCurrencyChange}
+              disabled={savingCurrency}
+            >
+              <SelectTrigger className="w-[240px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="max-h-60">
+                {allCurrencies.map((c) => {
+                  const info = getCurrency(c);
+                  return (
+                    <SelectItem key={c} value={c}>
+                      {c} {info ? `— ${info.currency}` : ""}
+                    </SelectItem>
+                  );
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+
           {activeGroup.is_personal ? (
             <div className="rounded-lg border border-border bg-card p-5">
               <p className="text-sm text-muted-foreground">

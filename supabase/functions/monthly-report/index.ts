@@ -298,10 +298,10 @@ Deno.serve(async (req) => {
         );
         const expenses = matching
           .filter((t: any) => t.type === "expense")
-          .reduce((s: number, t: any) => s + t.amount, 0);
+          .reduce((s: number, t: any) => s + (t.converted_amount ?? t.amount), 0);
         const income = matching
           .filter((t: any) => t.type === "income")
-          .reduce((s: number, t: any) => s + t.amount, 0);
+          .reduce((s: number, t: any) => s + (t.converted_amount ?? t.amount), 0);
         const effectiveLimit = b.amount_limit + income;
         const spent = expenses;
         const remaining = Math.max(0, effectiveLimit - spent);
@@ -442,8 +442,9 @@ Deno.serve(async (req) => {
         if (newPage) drawTxHeader();
 
         const t = txList[i];
-        if (t.type === "expense") totalExpenses += t.amount;
-        else totalIncome += t.amount;
+        const txAmt = t.converted_amount ?? t.amount;
+        if (t.type === "expense") totalExpenses += txAmt;
+        else totalIncome += txAmt;
 
         if (i % 2 === 0) {
           page.drawRectangle({

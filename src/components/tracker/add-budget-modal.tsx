@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
+import { useGroup } from "@/contexts/group-context";
 
 const PRIORITY_CURRENCIES = [
   "USD", "EUR", "GBP", "CAD", "AUD", "JPY", "CHF", "CNY", "INR", "MXN",
@@ -55,9 +56,10 @@ export function AddBudgetModal({
   defaultYear,
 }: AddBudgetModalProps) {
   const now = new Date();
+  const { activeGroup } = useGroup();
   const [category, setCategory] = useState("");
   const [amountLimit, setAmountLimit] = useState("");
-  const [currency, setCurrency] = useState("USD");
+  const [currency, setCurrency] = useState(activeGroup?.currency || "USD");
   const [month, setMonth] = useState(
     String(defaultMonth ?? now.getMonth() + 1)
   );
@@ -83,7 +85,7 @@ export function AddBudgetModal({
   const resetForm = () => {
     setCategory("");
     setAmountLimit("");
-    setCurrency("USD");
+    setCurrency(activeGroup?.currency || "USD");
     setMonth(String(defaultMonth ?? now.getMonth() + 1));
     setYear(String(defaultYear ?? now.getFullYear()));
     setError(null);

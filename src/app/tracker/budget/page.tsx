@@ -62,10 +62,10 @@ export default function BudgetPage() {
       );
       const expenses = matching
         .filter((t) => t.type === "expense")
-        .reduce((sum, t) => sum + t.amount, 0);
+        .reduce((sum, t) => sum + (t.converted_amount ?? t.amount), 0);
       const income = matching
         .filter((t) => t.type === "income")
-        .reduce((sum, t) => sum + t.amount, 0);
+        .reduce((sum, t) => sum + (t.converted_amount ?? t.amount), 0);
       return { ...b, spent: expenses, effective_limit: b.amount_limit + income };
     });
 
