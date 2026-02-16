@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { SidebarNav } from "@/components/dashboard/sidebar-nav";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { GroupProvider } from "@/contexts/group-context";
+import { ChatBubble } from "@/components/tracker/chat-bubble";
 
 export default async function TrackerLayout({
   children,
@@ -27,6 +28,7 @@ export default async function TrackerLayout({
           <main className="flex-1 overflow-auto">{children}</main>
         </div>
       </div>
+      <ChatBubble />
     </GroupProvider>
   );
 }
