@@ -59,15 +59,15 @@ export default function SignUpPage() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
         <div className="w-full max-w-sm">
-          <Card>
-            <CardHeader>
+          <Card className="py-2">
+            <CardHeader className="px-8 pt-8 pb-2">
               <CardTitle className="text-2xl">Check your email</CardTitle>
               <CardDescription>
                 We sent a confirmation link to <strong>{email}</strong>. Click
                 it to activate your account.
               </CardDescription>
             </CardHeader>
-            <CardFooter>
+            <CardFooter className="px-8 pb-8 pt-4">
               <Button variant="outline" className="w-full" asChild>
                 <Link href="/sign-in">Go to sign in</Link>
               </Button>
@@ -89,15 +89,15 @@ export default function SignUpPage() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm">
-        <Card>
-          <CardHeader className="space-y-1">
+        <Card className="py-2">
+          <CardHeader className="space-y-2 px-8 pt-8 pb-2">
             <CardTitle className="text-2xl">Create an account</CardTitle>
             <CardDescription>
               Enter your name, email, and a password to get started
             </CardDescription>
           </CardHeader>
           <form onSubmit={handleSubmit}>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-5 px-8 pt-4 pb-6">
               {error && (
                 <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
                   {error}
@@ -157,7 +157,7 @@ export default function SignUpPage() {
                 </p>
               </div>
             </CardContent>
-            <CardFooter className="flex flex-col gap-4">
+            <CardFooter className="flex flex-col gap-4 px-8 pb-8">
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading ? "Creating account…" : "Sign up"}
               </Button>

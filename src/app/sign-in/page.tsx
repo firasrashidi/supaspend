@@ -47,15 +47,15 @@ function SignInForm() {
 
   return (
     <div className="w-full max-w-sm">
-      <Card>
-        <CardHeader className="space-y-1">
+      <Card className="py-2">
+        <CardHeader className="space-y-2 px-8 pt-8 pb-2">
           <CardTitle className="text-2xl">Sign in</CardTitle>
           <CardDescription>
             Enter your email and password to access your account
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-5 px-8 pt-4 pb-6">
             {error && (
               <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 {error}
@@ -87,7 +87,7 @@ function SignInForm() {
               />
             </div>
           </CardContent>
-          <CardFooter className="flex flex-col gap-4">
+          <CardFooter className="flex flex-col gap-4 px-8 pb-8">
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Signing in…" : "Sign in"}
             </Button>
