@@ -1,8 +1,14 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { createClient } from "@/lib/supabase/server";
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   return (
     <div className="flex min-h-screen flex-col">
       <header className="border-b border-border/40">
@@ -18,12 +24,20 @@ export default function LandingPage() {
             supaspend
           </Link>
           <nav className="ml-auto flex items-center gap-4">
-            <Button variant="ghost" asChild>
-              <Link href="/sign-in">Sign in</Link>
-            </Button>
-            <Button asChild>
-              <Link href="/sign-up">Get started</Link>
-            </Button>
+            {user ? (
+              <Button asChild>
+                <Link href="/tracker">Dashboard</Link>
+              </Button>
+            ) : (
+              <>
+                <Button variant="ghost" asChild>
+                  <Link href="/sign-in">Sign in</Link>
+                </Button>
+                <Button asChild>
+                  <Link href="/sign-up">Get started</Link>
+                </Button>
+              </>
+            )}
           </nav>
         </div>
       </header>
